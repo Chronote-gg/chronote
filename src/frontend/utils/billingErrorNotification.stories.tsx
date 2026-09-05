@@ -47,6 +47,13 @@ export const SubscriptionRecovery: Story = {
   },
 };
 export const PortalPayerRequired: Story = { args: { action: "portal" } };
+export const TransitionsDisabled: Story = {
+  args: {
+    code: "BAD_REQUEST",
+    message:
+      "Plan changes are not available yet. Your current subscription is unchanged; contact support for help.",
+  },
+};
 export const UnexpectedFailure: Story = {
   args: {
     code: "INTERNAL_SERVER_ERROR",

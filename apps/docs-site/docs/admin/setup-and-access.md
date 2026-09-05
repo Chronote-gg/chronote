@@ -162,7 +162,9 @@ Open your server's Billing page in the portal to review its plan and usage. The
 original payer must also have Manage Server permission to manage an existing
 Stripe subscription. Other server managers cannot open the payer's Stripe account.
 
-When changing an existing plan, Stripe shows a confirmation for that subscription,
+Existing plan changes are currently unavailable while hosted billing validation
+is completed. Your current subscription stays unchanged; contact support for help.
+When plan changes are enabled, Stripe shows a confirmation for that subscription,
 including the price and any prorations, before applying the change. Returning to
 Chronote does not itself confirm payment; the plan updates after Stripe reports
 the change. A failed confirmation does not create a second subscription.

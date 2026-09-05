@@ -20,6 +20,26 @@ closed. Rejected writes do not revoke comp grants.
 
 ## Deployment prerequisite
 
+`STRIPE_SUBSCRIPTION_TRANSITIONS_ENABLED` defaults to false; only the exact value
+`true` enables hosted transitions. While disabled, any saved subscription ID stops
+the purchase request before subscription/customer retrieval or session creation
+with actionable guidance. The router can still read price and promotion metadata
+before reaching this guard. It cannot fall
+through to new Checkout. This conservatively includes terminal subscriptions that
+would otherwise qualify for a new purchase. Enable only after hosted test-mode
+validation and a deliberate activation decision. No production setting is changed
+by this PR.
+
+This guard covers hosted transition requests, not the entire billing release.
+Initial purchases still use Checkout, the payer-checked general management portal
+remains available, and current-state webhook reconciliation remains active. Portal
+capabilities still depend on the external Stripe configuration. Payer checks,
+customer ownership matching, conditional persistence, cache invalidation and comp
+reconciliation changes deploy normally. No parallel legacy webhook path is kept.
+Merging master automatically starts production deployment after CI; there is no
+source-only merge boundary. Keep the PR unmerged if those remaining live changes
+are not approved. The guard is not proof of hosted payment or webhook behavior.
+
 Code deployment does not configure Stripe. Before enabling this path, verify the
 portal configuration allows the intended target prices, uses the reviewed
 proration behavior, and preserves trials. Never create or reconfigure a portal

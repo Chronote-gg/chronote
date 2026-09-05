@@ -387,6 +387,12 @@ async function createExistingSubscriptionConfirmation(params: {
   } = params;
   const existing = await getSubscriptionRepository().get(guildId);
   if (existing?.stripeSubscriptionId) {
+    if (!config.stripe.subscriptionTransitionsEnabled) {
+      throw new BillingActionError(
+        "BAD_REQUEST",
+        "Plan changes are not available yet. Your current subscription is unchanged; contact support for help.",
+      );
+    }
     const subscription = await stripe.subscriptions.retrieve(
       existing.stripeSubscriptionId,
     );

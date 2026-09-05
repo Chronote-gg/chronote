@@ -1,5 +1,13 @@
 /** @jest-environment node */
-import { beforeEach, describe, expect, it, jest } from "@jest/globals";
+import {
+  afterAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from "@jest/globals";
+import { config } from "../../src/services/configService";
 import {
   createCheckoutSession,
   createPortalSession,
@@ -10,6 +18,10 @@ import type { StripeClient } from "../../src/types/stripe";
 
 const guildId = "111111111111111111";
 const user = { id: "payer", email: "payer@example.test" };
+const originalTransitionsEnabled = config.stripe.subscriptionTransitionsEnabled;
+afterAll(() => {
+  config.stripe.subscriptionTransitionsEnabled = originalTransitionsEnabled;
+});
 
 function fixture() {
   const subscription = {
@@ -54,6 +66,7 @@ function fixture() {
 }
 
 beforeEach(() => {
+  config.stripe.subscriptionTransitionsEnabled = true;
   resetMockStore();
   getMockStore().subscriptions.set(guildId, {
     guildId,
@@ -67,6 +80,55 @@ beforeEach(() => {
 });
 
 describe("existing server subscription checkout", () => {
+  it("blocks an existing subscription before any provider call when activation is disabled", async () => {
+    config.stripe.subscriptionTransitionsEnabled = false;
+    const { stripe, client } = fixture();
+    await expect(
+      createCheckoutSession({
+        stripe: client,
+        user,
+        guildId,
+        priceId: "price_pro",
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message:
+        "Plan changes are not available yet. Your current subscription is unchanged; contact support for help.",
+    });
+    expect(stripe.subscriptions.retrieve).not.toHaveBeenCalled();
+    expect(stripe.customers.retrieve).not.toHaveBeenCalled();
+    expect(stripe.customers.list).not.toHaveBeenCalled();
+    expect(stripe.customers.create).not.toHaveBeenCalled();
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+    expect(stripe.billingPortal.sessions.create).not.toHaveBeenCalled();
+    expect(getMockStore().subscriptions.get(guildId)?.tier).toBe("basic");
+  });
+
+  it("retains initial purchase Checkout while existing transitions are disabled", async () => {
+    config.stripe.subscriptionTransitionsEnabled = false;
+    getMockStore().subscriptions.delete(guildId);
+    const { stripe, client } = fixture();
+    await expect(
+      createCheckoutSession({
+        stripe: client,
+        user,
+        guildId,
+        priceId: "price_basic",
+      }),
+    ).resolves.toBe("https://checkout.stripe.com/new");
+    expect(stripe.checkout.sessions.create).toHaveBeenCalledTimes(1);
+    expect(stripe.billingPortal.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("retains payer-checked general management while transitions are disabled", async () => {
+    config.stripe.subscriptionTransitionsEnabled = false;
+    const { stripe, client } = fixture();
+    await createPortalSession({ stripe: client, user, guildId });
+    expect(stripe.customers.retrieve).toHaveBeenCalledWith("cus_existing");
+    expect(stripe.billingPortal.sessions.create).toHaveBeenCalledWith(
+      expect.not.objectContaining({ flow_data: expect.anything() }),
+    );
+  });
   it("does not reuse an email-matched customer owned by another Discord account", async () => {
     const { stripe, client } = fixture();
     stripe.customers.list.mockResolvedValue({
