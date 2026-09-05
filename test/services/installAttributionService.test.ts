@@ -5,8 +5,7 @@ import {
   isDiscordGuildId,
   parseInstallAttribution,
   readInstallAttributionFromRequest,
-  stashInstallAttributionFromSession,
-  storeInstallAttributionInSession,
+  setInstallAttributionOnRequest,
 } from "../../src/services/installAttributionService";
 
 describe("installAttributionService", () => {
@@ -78,30 +77,15 @@ describe("installAttributionService", () => {
     expect(attribution).not.toHaveProperty("referrerDomain");
   });
 
-  test("clears stale attribution when Do Not Track is set", () => {
-    const req = {
-      session: {
-        installAttribution: parseInstallAttribution({ source: "old-source" }),
-      },
-    };
-
-    storeInstallAttributionInSession(req, undefined);
-
-    expect(req.session.installAttribution).toBeUndefined();
-  });
-
-  test("stashes attribution across Passport middleware", () => {
-    const attribution = parseInstallAttribution({ source: "direct" })!;
+  test("keeps attribution request-local until bound to OAuth state", () => {
     const req = { session: {} };
-
-    expect(storeInstallAttributionInSession(req, attribution)).toBe(
-      req.session,
-    );
-    expect(stashInstallAttributionFromSession(req)).toBe(attribution);
-    expect(req.session.installAttribution).toBeUndefined();
+    const attribution = parseInstallAttribution({ source: "direct" });
+    setInstallAttributionOnRequest(req, attribution);
     expect(readInstallAttributionFromRequest(req)).toBe(attribution);
+    expect(req.session).toEqual({});
+    setInstallAttributionOnRequest(req, undefined);
+    expect(readInstallAttributionFromRequest(req)).toBeUndefined();
   });
-
   test("accepts only Discord snowflake guild ids", () => {
     expect(isDiscordGuildId("1249723747896918109")).toBe(true);
     expect(isDiscordGuildId("guild-1")).toBe(false);

@@ -6,43 +6,55 @@ import {
   readOauthRedirectFromRequest,
 } from "./oauthRedirectSession";
 import { readMcpAuthorizeRedirect } from "./mcpOAuthSession";
-import { stashInstallAttributionFromSession } from "./installAttributionService";
+import {
+  discordInstallStateStore,
+  isDiscordInstallState,
+  readDiscordInstallBinding,
+  restoreDiscordInstallBinding,
+} from "./discordInstallStateStore";
 
-export const DISCORD_INSTALL_SESSION_KEY = "oauth2:discord-install";
+export { DISCORD_INSTALL_SESSION_KEY } from "./discordInstallStateStore";
 
 // Both flows use the registered callback URL, but separate Passport state stores
 // bind each response to its intended flow. DNT does not affect that binding.
 export function discordCallbackAuthentication(
   passport: Pick<Authenticator, "authenticate">,
+  frontendSiteUrl: string,
 ): RequestHandler {
   return (req, res, next) => {
-    const installSession = req.session as typeof req.session & {
-      [DISCORD_INSTALL_SESSION_KEY]?: { state?: string };
-    };
-    const state = installSession?.[DISCORD_INSTALL_SESSION_KEY]?.state;
-    if (!state || state !== req.query.state) {
+    if (!isDiscordInstallState(req.query.state)) {
+      const installBinding = readDiscordInstallBinding(req);
       stashOauthRedirectFromSession(req);
       res.locals.mcpAuthorizeRedirect = readMcpAuthorizeRedirect(req);
-      passport.authenticate("discord", { failureRedirect: "/" })(
+      passport.authenticate("discord", { failureRedirect: frontendSiteUrl })(
         req,
         res,
-        next,
+        (error: unknown) => {
+          if (!error) restoreDiscordInstallBinding(req, installBinding);
+          next(error);
+        },
       );
       return;
     }
     passport.authenticate(
       "discord-install",
       { session: false },
-      (error: unknown, user: Profile | false | null) => {
+      async (error: unknown, user: Profile | false | null) => {
         // Passport consumes successful state; denial can skip its state store.
-        delete installSession[DISCORD_INSTALL_SESSION_KEY];
-        stashInstallAttributionFromSession(req);
+        try {
+          if (error || !user) {
+            await discordInstallStateStore.discard(req, req.query.state);
+          }
+        } catch (discardError) {
+          next(discardError);
+          return;
+        }
         if (error) {
           next(error);
           return;
         }
         if (!user) {
-          res.redirect("/");
+          res.redirect(new URL("/join", frontendSiteUrl).toString());
           return;
         }
         // A custom callback deliberately never logs in or replaces req.user.

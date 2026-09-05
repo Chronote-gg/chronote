@@ -1,7 +1,7 @@
+import { discordInstallStateStore } from "./services/discordInstallStateStore";
 import {
   discordCallbackAuthentication,
   resolveDiscordCallbackRedirect,
-  DISCORD_INSTALL_SESSION_KEY,
 } from "./services/discordInstallAuth";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -42,7 +42,7 @@ import {
   isDiscordGuildId,
   parseInstallAttribution,
   readInstallAttributionFromRequest,
-  storeInstallAttributionInSession,
+  setInstallAttributionOnRequest,
 } from "./services/installAttributionService";
 import {
   buildDiscordAuthProfile,
@@ -287,7 +287,7 @@ export function setupWebServer() {
           callbackURL: config.discord.callbackUrl,
           scope: DISCORD_INSTALL_SCOPES,
           state: true,
-          sessionKey: DISCORD_INSTALL_SESSION_KEY,
+          store: discordInstallStateStore,
         },
         (_accessToken, _refreshToken, profile, done) => {
           done(null, { id: profile.id });
@@ -393,21 +393,8 @@ export function setupWebServer() {
       authRateLimiter,
       (req, _res, next) => {
         const attribution = parseInstallAttribution(req.query);
-        const installSession = storeInstallAttributionInSession(
-          req,
-          attribution,
-        );
-        if (!installSession?.save) {
-          next(new Error("Discord install attribution requires a session"));
-          return;
-        }
-        installSession.save((err) => {
-          if (err) {
-            next(err);
-            return;
-          }
-          next();
-        });
+        setInstallAttributionOnRequest(req, attribution);
+        next();
       },
       passport.authenticate("discord-install", { session: false }),
     );
@@ -415,7 +402,7 @@ export function setupWebServer() {
     app.get(
       "/auth/discord/callback",
       authRateLimiter,
-      discordCallbackAuthentication(passport),
+      discordCallbackAuthentication(passport, config.frontend.siteUrl),
       async (req, res) => {
         const guildId = isDiscordGuildId(req.query.guild_id)
           ? req.query.guild_id

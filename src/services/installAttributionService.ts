@@ -48,13 +48,8 @@ export const DISCORD_INSTALL_SCOPES = [
 
 type QueryValues = Record<string, unknown>;
 
-type SessionWithInstallAttribution = Partial<session.Session> & {
-  installAttribution?: InstallAttribution;
-  oauthRedirect?: string;
-};
-
 export type RequestWithInstallAttribution = {
-  session?: SessionWithInstallAttribution;
+  session?: Partial<session.Session>;
   installAttribution?: InstallAttribution;
 };
 
@@ -123,26 +118,13 @@ export function parseInstallAttribution(
   };
 }
 
-export function storeInstallAttributionInSession(
+export function setInstallAttributionOnRequest(
   req: RequestWithInstallAttribution,
   attribution: InstallAttribution | undefined,
-): SessionWithInstallAttribution | undefined {
-  if (!req.session) return undefined;
-  if (attribution) req.session.installAttribution = attribution;
-  else delete req.session.installAttribution;
-  return req.session;
+): void {
+  if (attribution) req.installAttribution = attribution;
+  else delete req.installAttribution;
 }
-
-export function stashInstallAttributionFromSession(
-  req: RequestWithInstallAttribution,
-): InstallAttribution | undefined {
-  const stored = req.session?.installAttribution;
-  if (!stored) return undefined;
-  delete req.session?.installAttribution;
-  req.installAttribution = stored;
-  return stored;
-}
-
 export function readInstallAttributionFromRequest(
   req: RequestWithInstallAttribution,
 ): InstallAttribution | undefined {
