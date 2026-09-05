@@ -33,6 +33,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useGuildContext } from "../contexts/GuildContext";
 import { buildApiUrl } from "../services/apiClient";
 import { trpc } from "../services/trpc";
+import { showBillingError } from "../utils/billingErrorNotification";
 import { usePortalStore } from "../stores/portalStore";
 import { heroBackground, uiBorders, uiColors, uiTypography } from "../uiTokens";
 import type { BillingInterval, PaidTier } from "../../types/pricing";
@@ -226,15 +227,7 @@ export default function UpgradeServerSelect() {
       window.location.href = body.url;
     } catch (err) {
       console.error(err);
-      const rawMessage = String(err ?? "");
-      const errorMessage = rawMessage.includes("promotion")
-        ? rawMessage
-        : "Could not start checkout. Please try again.";
-      notifications.show({
-        color: "red",
-        title: "Checkout failed",
-        message: errorMessage,
-      });
+      showBillingError(err, "checkout");
     }
   };
 
@@ -247,11 +240,7 @@ export default function UpgradeServerSelect() {
       window.location.href = body.url;
     } catch (err) {
       console.error(err);
-      notifications.show({
-        color: "red",
-        title: "Billing portal failed",
-        message: "Could not open billing portal. Please try again.",
-      });
+      showBillingError(err, "portal");
     }
   };
 

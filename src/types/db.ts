@@ -17,6 +17,7 @@ export interface GuildSubscription {
   subscriptionType: string;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
+  stripeSyncRevision?: string;
   priceId?: string;
   updatedAt?: string;
   updatedBy?: string;
