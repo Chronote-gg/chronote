@@ -52,10 +52,7 @@ export const resolveRedirectTarget = (
   try {
     const parsed = new URL(trimmed);
     if (parsed.origin !== origin) return undefined;
-    return new URL(
-      `${parsed.pathname}${parsed.search}${parsed.hash}`,
-      origin,
-    ).toString();
+    return parsed.toString();
   } catch {
     return undefined;
   }

@@ -1,5 +1,6 @@
 import {
   discordCallbackAuthentication,
+  resolveDiscordCallbackRedirect,
   DISCORD_INSTALL_SESSION_KEY,
 } from "./services/discordInstallAuth";
 import cors from "cors";
@@ -33,8 +34,6 @@ import { appRouter } from "./trpc/router";
 import { AuthedProfile, createContext } from "./trpc/context";
 import { getMockUser } from "./repositories/mockStore";
 import { resolveRedirectTarget } from "./services/oauthRedirectService";
-import { readMcpAuthorizeRedirect } from "./services/mcpOAuthSession";
-import { readOauthRedirectFromRequest } from "./services/oauthRedirectSession";
 import { createAuthRateLimiter } from "./services/authRateLimitService";
 import { captureEvent } from "./services/analyticsService";
 import {
@@ -424,8 +423,6 @@ export function setupWebServer() {
         const installerId: string =
           res.locals.discordInstallerId ?? (req.user as Profile).id;
         const acquisition = readInstallAttributionFromRequest(req);
-        const mcpRedirect = readMcpAuthorizeRedirect(req);
-        const sessionRedirect = readOauthRedirectFromRequest(req);
         if (guildId) {
           saveGuildInstallerIfAbsent({
             guildId,
@@ -453,11 +450,8 @@ export function setupWebServer() {
               console.error("Failed to persist installer mapping", err),
             );
         }
-        const fallback = getFrontendFallback();
         res.redirect(
-          res.locals.discordInstallerId
-            ? new URL("/join", config.frontend.siteUrl).toString()
-            : mcpRedirect || sessionRedirect || fallback,
+          resolveDiscordCallbackRedirect(req, res, config.frontend.siteUrl),
         );
       },
     );

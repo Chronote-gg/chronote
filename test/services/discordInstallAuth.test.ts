@@ -6,6 +6,7 @@ import passport from "passport";
 import type { AddressInfo } from "net";
 import {
   discordCallbackAuthentication,
+  resolveDiscordCallbackRedirect,
   DISCORD_INSTALL_SESSION_KEY,
 } from "../../src/services/discordInstallAuth";
 
@@ -32,6 +33,7 @@ async function runCallback(
     dnt?: boolean;
     state?: string;
     denied?: boolean;
+    mcp?: boolean;
   } = {},
 ) {
   const auth = new passport.Passport();
@@ -58,6 +60,9 @@ async function runCallback(
   app.use((req, _res, next) => {
     Object.assign(req.session, {
       oauthRedirect: "https://chronote.gg/library",
+      ...(options.mcp
+        ? { mcpAuthorizeRedirect: "/api/mcp/oauth/authorize?fixture=true" }
+        : {}),
       ...(options.install
         ? { [DISCORD_INSTALL_SESSION_KEY]: { state: "install-state" } }
         : {}),
@@ -72,7 +77,13 @@ async function runCallback(
     next();
   });
   app.get("/callback", discordCallbackAuthentication(auth), (req, res) => {
+    const redirect = resolveDiscordCallbackRedirect(
+      req,
+      res,
+      "https://chronote.gg",
+    );
     res.json({
+      redirect,
       user: req.user,
       stored: req.session,
       installerId: res.locals.discordInstallerId,
@@ -108,6 +119,7 @@ test.each([false, true])(
     const result = await runCallback({ install: true, dnt });
     expect(result.status).toBe(200);
     expect(result.body.installerId).toBe("installer");
+    expect(result.body.redirect).toBe("https://chronote.gg/join");
     expect(result.body.user).toBeUndefined();
     expect(result.body.stored.passport).toBeUndefined();
     expect(result.body.stored[DISCORD_INSTALL_SESSION_KEY]).toBeUndefined();
@@ -139,5 +151,20 @@ test.each([{ state: "invalid" }, { denied: true }])(
     const result = await runCallback({ install: true, ...failure });
     expect(result.status).toBe(302);
     expect(result.serialized).not.toHaveBeenCalled();
+  },
+);
+
+test.each([false, true])(
+  "callback preserves MCP intent on install and consumes it on portal login, install=%s",
+  async (install) => {
+    const result = await runCallback({ install, mcp: true });
+    expect(result.body.redirect).toBe(
+      install
+        ? "https://chronote.gg/join"
+        : "/api/mcp/oauth/authorize?fixture=true",
+    );
+    expect(result.body.stored.mcpAuthorizeRedirect).toBe(
+      install ? "/api/mcp/oauth/authorize?fixture=true" : undefined,
+    );
   },
 );

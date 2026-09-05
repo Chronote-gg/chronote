@@ -1,7 +1,11 @@
-import type { RequestHandler } from "express";
+import type { Request, RequestHandler, Response } from "express";
 import type { Authenticator } from "passport";
 import type { Profile } from "passport-discord";
-import { stashOauthRedirectFromSession } from "./oauthRedirectSession";
+import {
+  stashOauthRedirectFromSession,
+  readOauthRedirectFromRequest,
+} from "./oauthRedirectSession";
+import { readMcpAuthorizeRedirect } from "./mcpOAuthSession";
 import { stashInstallAttributionFromSession } from "./installAttributionService";
 
 export const DISCORD_INSTALL_SESSION_KEY = "oauth2:discord-install";
@@ -18,6 +22,7 @@ export function discordCallbackAuthentication(
     const state = installSession?.[DISCORD_INSTALL_SESSION_KEY]?.state;
     if (!state || state !== req.query.state) {
       stashOauthRedirectFromSession(req);
+      res.locals.mcpAuthorizeRedirect = readMcpAuthorizeRedirect(req);
       passport.authenticate("discord", { failureRedirect: "/" })(
         req,
         res,
@@ -47,4 +52,18 @@ export function discordCallbackAuthentication(
       },
     )(req, res, next);
   };
+}
+
+export function resolveDiscordCallbackRedirect(
+  req: Request,
+  res: Response,
+  frontendSiteUrl: string,
+): string {
+  if (res.locals.discordInstallerId)
+    return new URL("/join", frontendSiteUrl).toString();
+  return (
+    res.locals.mcpAuthorizeRedirect ||
+    readOauthRedirectFromRequest(req) ||
+    frontendSiteUrl
+  );
 }
