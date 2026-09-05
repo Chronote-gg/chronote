@@ -111,8 +111,6 @@ describe("installAttributionService", () => {
   test("requests user and bot scopes for callback-backed installs", () => {
     expect(DISCORD_INSTALL_SCOPES).toEqual([
       "identify",
-      "email",
-      "guilds",
       "bot",
       "applications.commands",
     ]);
@@ -126,4 +124,27 @@ describe("installAttributionService", () => {
     expect(url.searchParams.get("client_id")).toBe("client-123");
     expect(url.searchParams.get("scope")).toBe("bot applications.commands");
   });
+});
+
+test.each([
+  "1249723747896918109.example.com",
+  "person.example.com",
+  "google.com.attacker.test",
+  "google.com/path",
+  "127.0.0.1",
+])("drops arbitrary referral host %s", (host) => {
+  const result = parseInstallAttribution({
+    source: host,
+    referrer_domain: host,
+  });
+  expect(result?.source).toBe("direct");
+  expect(result).not.toHaveProperty("referrerDomain");
+});
+test.each([
+  ["alice.github.io", "github.io"],
+  ["private.google.com", "google.com"],
+])("collapses %s to fixed category %s", (host, category) => {
+  expect(
+    parseInstallAttribution({ source: host, referrer_domain: host }),
+  ).toMatchObject({ source: category, referrerDomain: category });
 });

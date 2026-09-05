@@ -123,7 +123,10 @@ import {
   isOnboardModal,
   onboardCommand,
 } from "./commands/onboard";
-import { fetchGuildInstaller } from "./services/guildInstallerService";
+import {
+  fetchGuildInstaller,
+  removeGuildInstaller,
+} from "./services/guildInstallerService";
 import { captureEvent, shutdownAnalytics } from "./services/analyticsService";
 import { setDiscordClient } from "./services/discordClientAccessor";
 import { startMeetingControlCommandWorker } from "./services/meetingControlWorkerService";
@@ -525,6 +528,12 @@ export async function setupBot() {
   });
 
   client.on("guildDelete", async (guild) => {
+    const removedAt = new Date().toISOString();
+    try {
+      await removeGuildInstaller(guild.id, removedAt);
+    } catch (error) {
+      console.warn("Could not clear installer on guild removal", error);
+    }
     await invalidateBotGuildCache("guildDelete");
     await invalidateGuildCache(guild.id, "guildDelete");
     // Safe to trust: the gateway flags outages with `unavailable` and

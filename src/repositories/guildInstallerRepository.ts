@@ -1,4 +1,5 @@
 import {
+  deleteGuildInstaller,
   getGuildInstaller,
   writeGuildInstaller,
   writeGuildInstallerIfAbsent,
@@ -11,10 +12,12 @@ export type GuildInstallerRepository = {
   get: (guildId: string) => Promise<GuildInstaller | undefined>;
   write: (installer: GuildInstaller) => Promise<void>;
   writeIfAbsent: (installer: GuildInstaller) => Promise<boolean>;
+  remove: (guildId: string, removedAt: string) => Promise<void>;
 };
 
 const realRepository: GuildInstallerRepository = {
   get: getGuildInstaller,
+  remove: deleteGuildInstaller,
   write: writeGuildInstaller,
   writeIfAbsent: writeGuildInstallerIfAbsent,
 };
@@ -22,6 +25,13 @@ const realRepository: GuildInstallerRepository = {
 const mockRepository: GuildInstallerRepository = {
   async get(guildId) {
     return getMockStore().guildInstallers.get(guildId);
+  },
+  async remove(guildId, removedAt) {
+    const installers = getMockStore().guildInstallers;
+    const installer = installers.get(guildId);
+    if (installer && installer.installedAt <= removedAt) {
+      installers.delete(guildId);
+    }
   },
   async write(installer) {
     getMockStore().guildInstallers.set(installer.guildId, installer);

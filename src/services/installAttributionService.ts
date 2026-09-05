@@ -1,8 +1,8 @@
+import { sanitizeAcquisitionDomain as sanitizeDomain } from "../utils/acquisitionDomain";
 import type session from "express-session";
 import type { InstallAttribution } from "../types/db";
 
 const TOKEN_MAX_LENGTH = 64;
-const DOMAIN_MAX_LENGTH = 253;
 const DISCORD_SNOWFLAKE = /^\d{17,20}$/;
 const ATTRIBUTION_TOKEN = /^[a-z0-9][a-z0-9._-]*$/;
 const CTA_LOCATIONS = new Set(["hero", "footer-cta", "site-footer", "join"]);
@@ -42,8 +42,6 @@ const ACQUISITION_CAMPAIGNS = new Set([
 
 export const DISCORD_INSTALL_SCOPES = [
   "identify",
-  "email",
-  "guilds",
   "bot",
   "applications.commands",
 ];
@@ -74,26 +72,6 @@ function sanitizeToken(value: unknown): string | undefined {
     return undefined;
   }
   return normalized;
-}
-
-function sanitizeDomain(value: unknown): string | undefined {
-  const normalized = firstString(value)
-    ?.trim()
-    .toLowerCase()
-    .replace(/^www\./, "")
-    .replace(/\.$/, "");
-  if (!normalized || normalized.length > DOMAIN_MAX_LENGTH) return undefined;
-
-  try {
-    const hostname = new URL(`https://${normalized}`).hostname;
-    if (hostname !== normalized || !hostname.includes(".")) return undefined;
-    if (hostname === "chronote.gg" || hostname.endsWith(".chronote.gg")) {
-      return undefined;
-    }
-    return hostname;
-  } catch {
-    return undefined;
-  }
 }
 
 function sanitizeSource(value: unknown): string | undefined {

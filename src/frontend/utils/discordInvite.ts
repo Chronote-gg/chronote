@@ -1,3 +1,4 @@
+import { sanitizeAcquisitionDomain as sanitizeDomain } from "../../utils/acquisitionDomain";
 import { buildApiUrl } from "../services/apiClient";
 import { isDoNotTrackEnabled } from "../services/analytics";
 
@@ -62,14 +63,6 @@ function readUrl(value?: string): URL | undefined {
   } catch {
     return undefined;
   }
-}
-
-function sanitizeDomain(value: string | undefined): string | undefined {
-  const domain = value?.toLowerCase().replace(/^www\./, "");
-  if (!domain || domain === "chronote.gg" || domain.endsWith(".chronote.gg")) {
-    return undefined;
-  }
-  return domain;
 }
 
 function sanitizeSource(value: string | null | undefined): string | undefined {

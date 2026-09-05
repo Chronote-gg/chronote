@@ -1,3 +1,7 @@
+import {
+  discordCallbackAuthentication,
+  DISCORD_INSTALL_SESSION_KEY,
+} from "./services/discordInstallAuth";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import express from "express";
@@ -30,10 +34,7 @@ import { AuthedProfile, createContext } from "./trpc/context";
 import { getMockUser } from "./repositories/mockStore";
 import { resolveRedirectTarget } from "./services/oauthRedirectService";
 import { readMcpAuthorizeRedirect } from "./services/mcpOAuthSession";
-import {
-  readOauthRedirectFromRequest,
-  stashOauthRedirectFromSession,
-} from "./services/oauthRedirectSession";
+import { readOauthRedirectFromRequest } from "./services/oauthRedirectSession";
 import { createAuthRateLimiter } from "./services/authRateLimitService";
 import { captureEvent } from "./services/analyticsService";
 import {
@@ -42,7 +43,6 @@ import {
   isDiscordGuildId,
   parseInstallAttribution,
   readInstallAttributionFromRequest,
-  stashInstallAttributionFromSession,
   storeInstallAttributionInSession,
 } from "./services/installAttributionService";
 import {
@@ -279,6 +279,23 @@ export function setupWebServer() {
       ),
     );
 
+    passport.use(
+      "discord-install",
+      new DiscordStrategy(
+        {
+          clientID: config.discord.clientId,
+          clientSecret: config.discord.clientSecret,
+          callbackURL: config.discord.callbackUrl,
+          scope: DISCORD_INSTALL_SCOPES,
+          state: true,
+          sessionKey: DISCORD_INSTALL_SESSION_KEY,
+        },
+        (_accessToken, _refreshToken, profile, done) => {
+          done(null, { id: profile.id });
+        },
+      ),
+    );
+
     // Serialize and deserialize user
     passport.serializeUser((user, done) => {
       done(null, user);
@@ -385,10 +402,6 @@ export function setupWebServer() {
           next(new Error("Discord install attribution requires a session"));
           return;
         }
-        installSession.oauthRedirect = new URL(
-          "/join",
-          config.frontend.siteUrl,
-        ).toString();
         installSession.save((err) => {
           if (err) {
             next(err);
@@ -397,41 +410,33 @@ export function setupWebServer() {
           next();
         });
       },
-      passport.authenticate("discord", {
-        scope: DISCORD_INSTALL_SCOPES,
-      }),
+      passport.authenticate("discord-install", { session: false }),
     );
 
     app.get(
       "/auth/discord/callback",
       authRateLimiter,
-      (req, _res, next) => {
-        stashOauthRedirectFromSession(req);
-        stashInstallAttributionFromSession(req);
-        next();
-      },
-      passport.authenticate("discord", {
-        failureRedirect: "/",
-      }),
+      discordCallbackAuthentication(passport),
       (req, res) => {
         const guildId = isDiscordGuildId(req.query.guild_id)
           ? req.query.guild_id
           : undefined;
-        const profile = req.user as Profile;
+        const installerId: string =
+          res.locals.discordInstallerId ?? (req.user as Profile).id;
         const acquisition = readInstallAttributionFromRequest(req);
         const mcpRedirect = readMcpAuthorizeRedirect(req);
         const sessionRedirect = readOauthRedirectFromRequest(req);
         if (guildId) {
           saveGuildInstallerIfAbsent({
             guildId,
-            installerId: profile.id,
+            installerId,
             installedAt: new Date().toISOString(),
             ...(acquisition ? { acquisition } : {}),
           })
             .then((created) => {
               if (!created || !acquisition) return;
               captureEvent("server_install_attributed", {
-                userId: profile.id,
+                userId: installerId,
                 guildId,
                 properties: {
                   attribution_method: "oauth_callback",
@@ -449,7 +454,11 @@ export function setupWebServer() {
             );
         }
         const fallback = getFrontendFallback();
-        res.redirect(mcpRedirect || sessionRedirect || fallback);
+        res.redirect(
+          res.locals.discordInstallerId
+            ? new URL("/join", config.frontend.siteUrl).toString()
+            : mcpRedirect || sessionRedirect || fallback,
+        );
       },
     );
   } else {

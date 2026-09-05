@@ -18,14 +18,14 @@ describe("buildInstallUrl", () => {
       ctaLocation: "footer-cta",
       currentUrl:
         "https://chronote.gg/?utm_source=newsletter&utm_medium=email&utm_campaign=launch",
-      referrer: "https://www.example.com/private/path?person=someone",
+      referrer: "https://www.reddit.com/private/path?person=someone",
       doNotTrack: false,
     });
 
     expect(url).toContain("source=newsletter");
     expect(url).toContain("medium=email");
     expect(url).toContain("campaign=launch");
-    expect(url).toContain("referrer_domain=example.com");
+    expect(url).toContain("referrer_domain=reddit.com");
     expect(url).not.toContain("private");
     expect(url).not.toContain("person");
   });
@@ -95,4 +95,19 @@ describe("buildInstallUrl", () => {
     expect(url).not.toContain("person_name");
     expect(url).not.toContain("john_doe");
   });
+});
+
+test.each([
+  ["1249723747896918109.example.com", "direct"],
+  ["alice.github.io", "github.io"],
+  ["private.google.com", "google.com"],
+])("sanitizes referral %s before navigation", (host, source) => {
+  const url = buildInstallUrl({
+    ctaLocation: "hero",
+    currentUrl: `https://chronote.gg/?utm_source=${host}`,
+    referrer: `https://${host}/private`,
+    doNotTrack: false,
+  });
+  expect(url).toContain(`source=${source}`);
+  expect(url).not.toContain(host);
 });

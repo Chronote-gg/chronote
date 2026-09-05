@@ -12,3 +12,7 @@ export async function saveGuildInstaller(installer: GuildInstaller) {
 export async function saveGuildInstallerIfAbsent(installer: GuildInstaller) {
   return getGuildInstallerRepository().writeIfAbsent(installer);
 }
+
+export async function removeGuildInstaller(guildId: string, removedAt: string) {
+  return getGuildInstallerRepository().remove(guildId, removedAt);
+}

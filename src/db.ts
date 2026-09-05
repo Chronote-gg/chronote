@@ -1601,6 +1601,24 @@ export async function writeGuildInstallerIfAbsent(
   }
 }
 
+export async function deleteGuildInstaller(
+  guildId: string,
+  removedAt: string,
+): Promise<void> {
+  const command = new DeleteItemCommand({
+    TableName: tableName("InstallerTable"),
+    Key: marshall({ guildId }),
+    // A delayed removal must not erase a subsequent installation.
+    ConditionExpression: "installedAt <= :removedAt",
+    ExpressionAttributeValues: marshall({ ":removedAt": removedAt }),
+  });
+  try {
+    await dynamoDbClient.send(command);
+  } catch (error) {
+    if (isConditionalCheckFailed(error)) return;
+    throw error;
+  }
+}
 export async function getGuildInstaller(
   guildId: string,
 ): Promise<GuildInstaller | undefined> {
