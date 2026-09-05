@@ -30,6 +30,14 @@ would otherwise qualify for a new purchase. Enable only after hosted test-mode
 validation and a deliberate activation decision. No production setting is changed
 by this PR.
 
+The shared ECS task definition wires the default-false Terraform boolean into
+the container environment for production and sandbox. After validation and
+explicit activation approval, set the environment-scoped GitHub Actions variable
+`TFVAR_STRIPE_SUBSCRIPTION_TRANSITIONS_ENABLED=true`, review and apply the Terraform
+plan, then deploy the backend to move the service to the new task definition.
+Setting the variable or applying Terraform alone does not activate the running
+service. Reversing those steps with false disables new transition requests.
+
 This guard covers hosted transition requests, not the entire billing release.
 Initial purchases still use Checkout, the payer-checked general management portal
 remains available, and current-state webhook reconciliation remains active. Portal

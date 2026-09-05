@@ -43,6 +43,7 @@ function fixture() {
       list: jest.fn(
         async (): Promise<{
           data: Array<{ id: string; metadata: { discord_id: string } }>;
+          has_more?: boolean;
         }> => ({ data: [] }),
       ),
       create: jest.fn(async () => ({ id: "cus_new" })),
@@ -135,6 +136,25 @@ describe("existing server subscription checkout", () => {
       data: [{ id: "cus_other", metadata: { discord_id: "someone-else" } }],
     });
     await expect(ensureStripeCustomer(client, user)).resolves.toBe("cus_new");
+  });
+  it("finds the payer on a later email-match page without creating another customer", async () => {
+    const { stripe, client } = fixture();
+    stripe.customers.list
+      .mockResolvedValueOnce({
+        data: [{ id: "cus_other", metadata: { discord_id: "other" } }],
+        has_more: true,
+      })
+      .mockResolvedValueOnce({
+        data: [{ id: "cus_owned", metadata: { discord_id: user.id } }],
+        has_more: false,
+      });
+    await expect(ensureStripeCustomer(client, user)).resolves.toBe("cus_owned");
+    expect(stripe.customers.list).toHaveBeenLastCalledWith({
+      email: user.email,
+      limit: 100,
+      starting_after: "cus_other",
+    });
+    expect(stripe.customers.create).not.toHaveBeenCalled();
   });
   it("confirms a price change on the existing item without creating another subscription", async () => {
     const { stripe, client } = fixture();

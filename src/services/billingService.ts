@@ -210,14 +210,19 @@ export async function ensureStripeCustomer(
 ): Promise<string> {
   const searchEmail = user.email;
   if (searchEmail) {
-    const found = await stripe.customers.list({
-      email: searchEmail,
-      limit: 1,
-    });
-    const owned = found.data.find(
-      (customer) => customer.metadata.discord_id === user.id,
-    );
-    if (owned) return owned.id;
+    let startingAfter: string | undefined;
+    do {
+      const found = await stripe.customers.list({
+        email: searchEmail,
+        limit: 100,
+        ...(startingAfter ? { starting_after: startingAfter } : {}),
+      });
+      const owned = found.data.find(
+        (customer) => customer.metadata.discord_id === user.id,
+      );
+      if (owned) return owned.id;
+      startingAfter = found.has_more ? found.data.at(-1)?.id : undefined;
+    } while (startingAfter);
   }
   const created = await stripe.customers.create({
     ...(searchEmail ? { email: searchEmail } : {}),
