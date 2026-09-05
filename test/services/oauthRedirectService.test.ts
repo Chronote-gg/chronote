@@ -73,3 +73,13 @@ describe("oauthRedirectService", () => {
     );
   });
 });
+
+test.each([
+  "/\\evil.com/portal",
+  "/\\\\evil.com/portal",
+  "/\t/evil.com/portal",
+])("rejects relative paths that normalize to another origin: %s", (path) => {
+  expect(
+    resolveRedirectTarget(path, "https://app.example.com"),
+  ).toBeUndefined();
+});

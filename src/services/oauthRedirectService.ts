@@ -43,7 +43,10 @@ export const resolveRedirectTarget = (
   }
 
   if (isSafeRedirectPath(trimmed)) {
-    return new URL(trimmed, origin).toString();
+    const target = new URL(trimmed, origin);
+    // URL parsing treats backslashes as slashes for HTTP(S). Validate the
+    // normalized origin rather than trusting the apparent relative path.
+    return target.origin === origin ? target.toString() : undefined;
   }
 
   try {

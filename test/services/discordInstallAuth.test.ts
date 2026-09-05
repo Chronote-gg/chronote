@@ -1,6 +1,7 @@
 /** @jest-environment node */
 import express from "express";
 import session from "express-session";
+import { rateLimit } from "express-rate-limit";
 import passport from "passport";
 import type { AddressInfo } from "net";
 import {
@@ -43,11 +44,13 @@ async function runCallback(
   auth.use("discord", new TestDiscordStrategy());
   auth.use("discord-install", new TestDiscordStrategy());
   const app = express();
+  app.use(rateLimit({ windowMs: 60_000, limit: 20 }));
   app.use(
     session({
       secret: "test-only-secret",
       resave: false,
       saveUninitialized: false,
+      cookie: { secure: true, httpOnly: true },
     }),
   );
   app.use(auth.initialize());
