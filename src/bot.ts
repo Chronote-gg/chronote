@@ -1,3 +1,4 @@
+import { waitForGuildInstaller } from "./services/guildInstallerOnboardingService";
 import {
   ButtonInteraction,
   ChatInputCommandInteraction,
@@ -123,10 +124,7 @@ import {
   isOnboardModal,
   onboardCommand,
 } from "./commands/onboard";
-import {
-  fetchGuildInstaller,
-  removeGuildInstaller,
-} from "./services/guildInstallerService";
+import { removeGuildInstaller } from "./services/guildInstallerService";
 import { captureEvent, shutdownAnalytics } from "./services/analyticsService";
 import { setDiscordClient } from "./services/discordClientAccessor";
 import { startMeetingControlCommandWorker } from "./services/meetingControlWorkerService";
@@ -504,7 +502,10 @@ export async function setupBot() {
       return;
     }
     try {
-      const installer = await fetchGuildInstaller(guild.id);
+      const installer = await waitForGuildInstaller(
+        guild.id,
+        guild.joinedTimestamp,
+      );
       const dmTarget =
         installer?.installerId &&
         (await client.users.fetch(installer.installerId).catch(() => null));

@@ -27,7 +27,7 @@ import {
 import { config } from "./services/configService";
 import { DynamoSessionStore } from "./services/sessionStore";
 import { getStripeClient } from "./services/stripeClient";
-import { saveGuildInstallerIfAbsent } from "./services/guildInstallerService";
+import { saveGuildInstallerForCurrentMembership } from "./services/guildInstallerService";
 import { passThrough } from "./middleware/passThrough";
 import { metricsMiddleware, metricsRegistry } from "./metrics";
 import { appRouter } from "./trpc/router";
@@ -416,7 +416,7 @@ export function setupWebServer() {
       "/auth/discord/callback",
       authRateLimiter,
       discordCallbackAuthentication(passport),
-      (req, res) => {
+      async (req, res) => {
         const guildId = isDiscordGuildId(req.query.guild_id)
           ? req.query.guild_id
           : undefined;
@@ -424,7 +424,7 @@ export function setupWebServer() {
           res.locals.discordInstallerId ?? (req.user as Profile).id;
         const acquisition = readInstallAttributionFromRequest(req);
         if (guildId) {
-          saveGuildInstallerIfAbsent({
+          await saveGuildInstallerForCurrentMembership({
             guildId,
             installerId,
             installedAt: new Date().toISOString(),

@@ -1601,6 +1601,26 @@ export async function writeGuildInstallerIfAbsent(
   }
 }
 
+export async function writeGuildInstallerForMembership(
+  installer: GuildInstaller,
+  joinedAt: string,
+): Promise<boolean> {
+  const command = new PutItemCommand({
+    TableName: tableName("InstallerTable"),
+    Item: marshall(installer),
+    // Compare atomically so an old membership callback cannot replace a newer one.
+    ConditionExpression:
+      "attribute_not_exists(guildId) OR installedAt < :joinedAt",
+    ExpressionAttributeValues: marshall({ ":joinedAt": joinedAt }),
+  });
+  try {
+    await dynamoDbClient.send(command);
+    return true;
+  } catch (error) {
+    if (isConditionalCheckFailed(error)) return false;
+    throw error;
+  }
+}
 export async function deleteGuildInstaller(
   guildId: string,
   removedAt: string,

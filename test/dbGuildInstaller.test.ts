@@ -4,7 +4,11 @@ import {
   PutItemCommand,
 } from "@aws-sdk/client-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
-import { deleteGuildInstaller, writeGuildInstallerIfAbsent } from "../src/db";
+import {
+  deleteGuildInstaller,
+  writeGuildInstallerIfAbsent,
+  writeGuildInstallerForMembership,
+} from "../src/db";
 
 const sendMock = jest.spyOn(DynamoDBClient.prototype, "send");
 
@@ -58,4 +62,38 @@ test("storage failures propagate to the removal handler", async () => {
   await expect(deleteGuildInstaller(installer.guildId, removedAt)).rejects.toBe(
     error,
   );
+});
+
+test("membership replacement checks the stored installation atomically", async () => {
+  sendMock.mockResolvedValueOnce({} as never);
+  await expect(
+    writeGuildInstallerForMembership(installer, removedAt),
+  ).resolves.toBe(true);
+  expect(sendMock).toHaveBeenCalledWith(expect.any(PutItemCommand));
+  expect(sendMock.mock.calls[0][0].input).toEqual(
+    expect.objectContaining({
+      Item: marshall(installer),
+      ConditionExpression:
+        "attribute_not_exists(guildId) OR installedAt < :joinedAt",
+      ExpressionAttributeValues: marshall({ ":joinedAt": removedAt }),
+    }),
+  );
+});
+
+test("a competing current membership writer wins without being overwritten", async () => {
+  sendMock.mockRejectedValueOnce({
+    name: "ConditionalCheckFailedException",
+  } as never);
+  await expect(
+    writeGuildInstallerForMembership(installer, removedAt),
+  ).resolves.toBe(false);
+  expect(sendMock).toHaveBeenCalledTimes(1);
+});
+
+test("membership write storage failures propagate", async () => {
+  const error = new Error("storage unavailable");
+  sendMock.mockRejectedValueOnce(error as never);
+  await expect(
+    writeGuildInstallerForMembership(installer, removedAt),
+  ).rejects.toBe(error);
 });
