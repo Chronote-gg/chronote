@@ -54,7 +54,7 @@ export function discordCallbackAuthentication(
           return;
         }
         if (!user) {
-          res.redirect(new URL("/join", frontendSiteUrl).toString());
+          res.redirect(frontendSiteUrl);
           return;
         }
         // A custom callback deliberately never logs in or replaces req.user.

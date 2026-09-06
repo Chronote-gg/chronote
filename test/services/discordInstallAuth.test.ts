@@ -1,6 +1,7 @@
 /** @jest-environment node */
 import express from "express";
 import session from "express-session";
+import { rateLimit } from "express-rate-limit";
 import passport from "passport";
 import OAuth2Strategy from "passport-oauth2";
 import type { AddressInfo } from "net";
@@ -56,12 +57,14 @@ async function createFixture() {
   auth.use("discord", new TestDiscordStrategy(false));
   auth.use("discord-install", new TestDiscordStrategy(true));
   const app = express();
+  app.set("trust proxy", "loopback");
+  app.use(rateLimit({ windowMs: 60_000, limit: 100 }));
   app.use(
     session({
       secret: "test-only-secret",
       resave: false,
       saveUninitialized: false,
-      cookie: { httpOnly: true },
+      cookie: { secure: true, httpOnly: true },
     }),
   );
   app.use(auth.initialize());
@@ -108,7 +111,7 @@ async function createFixture() {
     get: (path: string, cookie = "") =>
       fetch(`${origin}${path}`, {
         redirect: "manual",
-        headers: { Cookie: cookie },
+        headers: { Cookie: cookie, "X-Forwarded-Proto": "https" },
       }),
     close: () =>
       new Promise<void>((resolve, reject) =>
@@ -196,7 +199,7 @@ test.each([{ state: "install.invalid" }, { denied: true }])(
   async (failure) => {
     const result = await runCallback({ install: true, ...failure });
     expect(result.status).toBe(302);
-    expect(result.location).toBe("https://chronote.gg/join");
+    expect(result.location).toBe("https://chronote.gg");
     expect(result.serialized).not.toHaveBeenCalled();
   },
 );
@@ -289,7 +292,7 @@ test("provider denial consumes only the cancelled flow", async () => {
     const a = await fixture.get("/begin?source=github", cookie);
     const b = await fixture.get("/begin?source=reddit", cookie);
     const denied = await fixture.get(callbackPath(stateFrom(a), true), cookie);
-    expect(denied.headers.get("location")).toBe("https://chronote.gg/join");
+    expect(denied.headers.get("location")).toBe("https://chronote.gg");
     const success = await fixture.get(callbackPath(stateFrom(b)), cookie);
     expect((await success.json()).attribution.source).toBe("reddit");
     const replay = await fixture.get(callbackPath(stateFrom(a)), cookie);
