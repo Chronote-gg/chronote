@@ -27,6 +27,7 @@ import PageHeader from "../components/PageHeader";
 import Surface from "../components/Surface";
 import PricingCard from "../components/PricingCard";
 import { trpc } from "../services/trpc";
+import { showBillingError } from "../utils/billingErrorNotification";
 import { uiBorders, uiColors, uiGradients } from "../uiTokens";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { BillingInterval, PaidTier } from "../../types/pricing";
@@ -618,15 +619,7 @@ export function Billing() {
       window.location.href = body.url;
     } catch (err) {
       console.error(err);
-      const errorMessage =
-        err instanceof Error && err.message.includes("promotion")
-          ? err.message
-          : "Could not start checkout. Please try again.";
-      notifications.show({
-        color: "red",
-        title: "Checkout failed",
-        message: errorMessage,
-      });
+      showBillingError(err, "checkout");
     }
   };
 
@@ -639,11 +632,7 @@ export function Billing() {
       window.location.href = body.url;
     } catch (err) {
       console.error(err);
-      notifications.show({
-        color: "red",
-        title: "Billing portal failed",
-        message: "Could not open billing portal. Please try again.",
-      });
+      showBillingError(err, "portal");
     }
   };
 

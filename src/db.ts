@@ -90,6 +90,7 @@ export async function getGuildSubscription(
   const params = {
     TableName: tableName("GuildSubscriptionTable"),
     Key: marshall({ guildId }),
+    ConsistentRead: true,
   };
   const command = new GetItemCommand(params);
   const result = await dynamoDbClient.send(command);
@@ -97,6 +98,45 @@ export async function getGuildSubscription(
     return unmarshall(result.Item) as GuildSubscription;
   }
   return undefined;
+}
+
+export async function compareAndWriteGuildSubscription(
+  subscription: GuildSubscription,
+  expected: GuildSubscription | undefined,
+): Promise<boolean> {
+  const names: Record<string, string> = { "#guildId": "guildId" };
+  const values: Record<string, string> = {};
+  const conditions = [
+    expected ? "attribute_exists(#guildId)" : "attribute_not_exists(#guildId)",
+  ];
+  if (expected) {
+    for (const key of ["stripeSubscriptionId", "stripeSyncRevision"] as const) {
+      names[`#${key}`] = key;
+      if (expected[key] !== undefined) {
+        values[`:${key}`] = expected[key];
+        conditions.push(`#${key} = :${key}`);
+      } else {
+        conditions.push(`attribute_not_exists(#${key})`);
+      }
+    }
+  }
+  try {
+    await dynamoDbClient.send(
+      new PutItemCommand({
+        TableName: tableName("GuildSubscriptionTable"),
+        Item: marshall(subscription, { removeUndefinedValues: true }),
+        ConditionExpression: conditions.join(" AND "),
+        ExpressionAttributeNames: names,
+        ...(Object.keys(values).length
+          ? { ExpressionAttributeValues: marshall(values) }
+          : {}),
+      }),
+    );
+    return true;
+  } catch (error) {
+    if (isConditionalCheckFailed(error)) return false;
+    throw error;
+  }
 }
 
 // Entitlement Grant Table
