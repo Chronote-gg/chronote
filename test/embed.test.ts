@@ -39,12 +39,10 @@ describe("updateMeetingSummaryMessage", () => {
     textChannel: {
       id: "text",
       messages: {
-        fetch: jest
-          .fn()
-          .mockResolvedValue({
-            id: "start",
-            edit: jest.fn().mockResolvedValue(undefined),
-          }),
+        fetch: jest.fn().mockResolvedValue({
+          id: "start",
+          edit: jest.fn().mockResolvedValue(undefined),
+        }),
       },
       send: jest.fn(),
     },
