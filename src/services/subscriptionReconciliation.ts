@@ -125,26 +125,15 @@ export const reconcileSubscription = async (
       existing?.stripeSubscriptionId &&
       existing.stripeSubscriptionId !== subscription.id
     ) {
-      // Old terminal events cannot adopt a guild that now points elsewhere.
-      if (isTerminalSubscription(subscription)) return;
-      const previous = await stripe.subscriptions.retrieve(
-        existing.stripeSubscriptionId,
-      );
-      if (readMetadataValue(previous.metadata, "guild_id") !== guildId) {
-        throw new Error(
-          "Stored Stripe subscription guild metadata does not match",
-        );
-      }
-      // A new purchase can replace a canceled subscription, but historical
-      // duplicates must not resurrect themselves after the newer one ends.
       if (
-        !isTerminalSubscription(previous) ||
-        subscription.created <= previous.created
-      ) {
-        if (!isTerminalSubscription(previous))
-          await recordDuplicatePurchase(guildId, previous, subscription);
+        await rejectCompetingSubscription(
+          stripe,
+          guildId,
+          existing.stripeSubscriptionId,
+          subscription,
+        )
+      )
         return;
-      }
     }
     await validatePurchaseSubscription(guildId, subscription);
     const tier = isTerminalSubscription(subscription)
@@ -191,3 +180,29 @@ export const reconcileSubscription = async (
   }
   throw new Error("Stripe subscription changed concurrently; retry webhook");
 };
+
+async function rejectCompetingSubscription(
+  stripe: StripeClient,
+  guildId: string,
+  previousId: string,
+  subscription: StripeSubscription,
+) {
+  // Old terminal events cannot adopt a guild that now points elsewhere.
+  if (isTerminalSubscription(subscription)) return true;
+  const previous = await stripe.subscriptions.retrieve(previousId);
+  if (readMetadataValue(previous.metadata, "guild_id") !== guildId) {
+    throw new Error("Stored Stripe subscription guild metadata does not match");
+  }
+  // A new purchase can replace a canceled subscription, but historical
+  // duplicates must not resurrect themselves after the newer one ends.
+  if (
+    !isTerminalSubscription(previous) ||
+    subscription.created <= previous.created
+  ) {
+    if (!isTerminalSubscription(previous))
+      await recordDuplicatePurchase(guildId, previous, subscription);
+    return true;
+  }
+
+  return false;
+}

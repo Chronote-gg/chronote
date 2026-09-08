@@ -171,10 +171,7 @@ export async function createInitialPurchase(
   }
   attempt = await customer(input, attempt);
   const pointer = await getSubscriptionRepository().get(input.guildId);
-  if (
-    pointer?.stripeSubscriptionId !== input.expected?.stripeSubscriptionId ||
-    pointer?.stripeSyncRevision !== input.expected?.stripeSyncRevision
-  )
+  if (!sameSubscriptionPointer(pointer, input.expected))
     return currentOutcome(attempt);
   const session = attempt.sessionId
     ? await input.stripe.checkout.sessions.retrieve(attempt.sessionId)
@@ -219,10 +216,7 @@ export async function createInitialPurchase(
   const latestPointer = await getSubscriptionRepository().get(input.guildId);
   if (
     current?.revision !== attempt.revision ||
-    latestPointer?.stripeSubscriptionId !==
-      input.expected?.stripeSubscriptionId ||
-    latestPointer?.stripeSyncRevision !== input.expected?.stripeSyncRevision ||
-    Boolean(latestPointer) !== Boolean(input.expected)
+    !sameSubscriptionPointer(latestPointer, input.expected)
   )
     return currentOutcome(attempt);
   return session.url;
@@ -319,4 +313,15 @@ async function freezeCustomerOperation(
   }
 
   return attempt;
+}
+
+function sameSubscriptionPointer(
+  left: GuildSubscription | undefined,
+  right: GuildSubscription | undefined,
+) {
+  return (
+    Boolean(left) === Boolean(right) &&
+    left?.stripeSubscriptionId === right?.stripeSubscriptionId &&
+    left?.stripeSyncRevision === right?.stripeSyncRevision
+  );
 }
