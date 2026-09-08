@@ -159,6 +159,22 @@ async function currentOutcome(attempt: PurchaseAttempt): Promise<string> {
   throw pending();
 }
 
+async function completedSessionOutcome(
+  input: PurchaseInput,
+  attempt: PurchaseAttempt,
+  session: Stripe.Checkout.Session,
+): Promise<string> {
+  if (!session.subscription) throw pending();
+  await reconcileSubscription(
+    input.stripe,
+    input.guildId,
+    typeof session.subscription === "string"
+      ? session.subscription
+      : session.subscription.id,
+  );
+  return currentOutcome(attempt);
+}
+
 export async function createInitialPurchase(
   input: PurchaseInput,
 ): Promise<string> {
@@ -192,15 +208,7 @@ export async function createInitialPurchase(
     );
   }
   if (session.status === "complete") {
-    if (!session.subscription) throw pending();
-    await reconcileSubscription(
-      input.stripe,
-      input.guildId,
-      typeof session.subscription === "string"
-        ? session.subscription
-        : session.subscription.id,
-    );
-    return currentOutcome(attempt);
+    return completedSessionOutcome(input, attempt, session);
   }
   if (session.status !== "open" || !session.url) throw pending();
   try {
