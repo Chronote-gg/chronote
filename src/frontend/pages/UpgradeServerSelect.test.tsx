@@ -18,7 +18,10 @@ jest.mock("../contexts/AuthContext", () => ({
 }));
 jest.mock("../contexts/GuildContext", () => ({
   useGuildContext: () => ({
-    guilds: [{ id: "s1", name: "Test server", canManage: true }],
+    guilds: [
+      { id: "s1", name: "Test server", canManage: true },
+      { id: "s2", name: "New server", canManage: true },
+    ],
     selectedGuildId: "s1",
     setSelectedGuildId: jest.fn(),
     loading: false,
@@ -147,6 +150,46 @@ it("offers existing Pro subscribers management rather than checkout", () => {
     screen.queryByRole("button", { name: /Continue to Stripe/ }),
   ).not.toBeInTheDocument();
 });
+
+it.each(["basic", "pro"])(
+  "preserves selection when switching a %s guild to a Free guild, then checks out the newly chosen Basic plan for that guild",
+  async (tier) => {
+    mockSearch.mockReturnValue({ serverId: "s1" });
+    mockBilling.mockReturnValue({ tier, billingEnabled: true });
+    const view = renderSelector();
+
+    mockSearch.mockReturnValue({ serverId: "s2" });
+    mockBilling.mockReturnValue({ tier: "free", billingEnabled: true });
+    view.rerender(
+      <MantineProvider>
+        <UpgradeServerSelect />
+      </MantineProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Continue to Stripe (Pro)" }),
+    ).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Select Basic" }));
+    expect(
+      screen.getByRole("button", { name: "Continue to Stripe (Basic)" }),
+    ).toBeEnabled();
+
+    mockCheckout.mockRejectedValueOnce(new Error("Preview checkout stopped"));
+    const log = jest.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await userEvent.click(
+        screen.getByRole("button", { name: "Continue to Stripe (Basic)" }),
+      );
+      expect(mockCheckout).toHaveBeenCalledWith({
+        serverId: "s2",
+        tier: "basic",
+        interval: "month",
+        promotionCode: undefined,
+      });
+    } finally {
+      log.mockRestore();
+    }
+  },
+);
 
 it("preserves other query fields when the buyer explicitly changes plans", async () => {
   renderSelector();
